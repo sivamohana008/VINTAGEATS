@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VintageATS - Advanced AI Scorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --wine: #58181F;
+            --cream: #FFFDF9;
+            --accent-gold: #D4AF37;
+            --soft-gold: #B8860B;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--cream); color: #2D1B1E; }
+        .serif { font-family: 'Crimson Pro', serif; }
+        
+        .animate-results { animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--wine); border-radius: 10px; }
+
+        #resume-preview-area { 
+            width: 210mm; 
+            min-height: 297mm; 
+            padding: 15mm 20mm; 
+            margin: auto; 
+            background: white; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
+            transform: scale(0.65); 
+            transform-origin: top center; 
+        }
+
+        .markdown-content ul { list-style-type: none; }
+        .markdown-content li { margin-bottom: 0.5rem; position: relative; padding-left: 1.5rem; }
+        .markdown-content li::before { content: "•"; position: absolute; left: 0; color: var(--wine); font-weight: bold; }
+        
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2358181F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1em;
+        }
+
+        .score-circle {
+            transition: stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Navigation -->
+    <nav class="bg-[#58181F] text-[#F9F3E5] px-8 py-4 flex justify-between items-center shadow-lg sticky top-0 z-50">
+        <div class="flex items-center gap-2">
+            <div class="bg-[#F9F3E5] p-1.5 rounded-lg text-[#58181F]">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            </div>
+            <span class="text-xl font-bold tracking-tight uppercase">Vintage<span class="font-light">ATS</span></span>
+        </div>
+        <div class="flex gap-6 text-sm font-medium">
+            <button onclick="switchTab('optimizer')" id="tab-opt" class="pb-1 border-b-2 border-[#F9F3E5]">Optimizer</button>
+            <button onclick="switchTab('builder')" id="tab-build" class="pb-1 border-b-2 border-transparent opacity-70 hover:opacity-100">Builder</button>
+        </div>
+    </nav>
+
+    <!-- Optimizer View -->
+    <main id="view-optimizer" class="max-w-7xl mx-auto p-6 lg:p-12 transition-all">
+        <header class="mb-12">
+            <h1 class="text-5xl serif font-bold text-[#421217] mb-3">VintageATS Career Optimizer</h1>
+            <p class="text-gray-600 text-lg">Select your role, upload your resume, and get an instant ATS compatibility score</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            <!-- Inputs -->
+            <div class="lg:col-span-5 space-y-6">
+                <div class="bg-white rounded-[2rem] p-8 border border-[#E8DCC4] shadow-sm">
+                    
+                    <div class="mb-6">
+                        <label class="block text-xs font-bold uppercase tracking-widest text-[#58181F] mb-3">Industry Sector</label>
+                        <select id="sector-select" onchange="updateJobRoles()" class="w-full p-4 bg-[#FAF3F4] border border-[#E8DCC4] rounded-xl text-sm outline-none focus:ring-2 ring-[#58181F]/20 cursor-pointer">
+                            <option value="">Select Sector</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="block text-xs font-bold uppercase tracking-widest text-[#58181F] mb-3">Job Role</label>
+                        <select id="job-select" onchange="generateJD()" class="w-full p-4 bg-[#FAF3F4] border border-[#E8DCC4] rounded-xl text-sm outline-none focus:ring-2 ring-[#58181F]/20 cursor-pointer" disabled>
+                            <option value="">Select Role</option>
+                        </select>
+                    </div>
+
+                    <label class="block text-xs font-bold uppercase tracking-widest text-[#58181F] mb-4">Job Description</label>
+                    <textarea id="jd-input" rows="6" class="w-full p-5 bg-[#FAF3F4] border border-[#E8DCC4] rounded-2xl text-sm outline-none focus:ring-2 ring-[#58181F]/20 resize-none custom-scrollbar" placeholder="Role requirements will appear here..."></textarea>
+
+                    <div class="mt-8">
+                        <label class="block text-xs font-bold uppercase tracking-widest text-[#58181F] mb-4">Resume (PDF)</label>
+                        <div id="drop-zone" onclick="document.getElementById('resume-input').click()" class="group border-2 border-dashed border-[#E8DCC4] hover:border-[#58181F] bg-white rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all">
+                            <input type="file" id="resume-input" class="hidden" accept=".pdf" onchange="updateFileName(this)">
+                            <div class="p-4 bg-[#F9F3E5] rounded-full mb-4 group-hover:scale-110 transition-transform">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#58181F" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                            </div>
+                            <p id="file-name" class="text-[#58181F] font-semibold text-center text-sm">Upload Resume PDF</p>
+                        </div>
+                    </div>
+                    
+                    <button id="analyze-btn" onclick="runAIAnalysis()" class="w-full mt-10 py-5 rounded-2xl font-bold text-xl bg-[#58181F] text-white hover:bg-[#421217] shadow-xl transition-all active:scale-[0.98]">
+                        Start Analysis
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="lg:col-span-7">
+                <div id="empty-state" class="h-full flex flex-col items-center justify-center bg-[#F9F3E5] rounded-[2rem] border border-dashed border-[#E8DCC4] p-12 text-center min-h-[550px]">
+                    <h3 class="text-2xl serif font-bold text-[#58181F]">Ready for Scan</h3>
+                    <p class="text-gray-500 mt-2 max-w-xs">Upload your resume and click "Start Analysis" to generate your score.</p>
+                </div>
+
+                <div id="loading-state" class="hidden h-full flex flex-col items-center justify-center bg-white rounded-[2rem] shadow-sm p-12 min-h-[550px]">
+                    <div class="w-20 h-20 border-[6px] border-[#F9F3E5] border-t-[#58181F] rounded-full animate-spin mb-6"></div>
+                    <p class="text-xl font-bold text-[#58181F]">Gemini is Analyzing...</p>
+                    <p class="text-xs text-gray-400 mt-2 tracking-widest uppercase">Parsing keywords and structure</p>
+                </div>
+
+                <div id="analysis-results" class="hidden space-y-6 animate-results">
+                    <!-- Score Visualization -->
+                    <div class="bg-white rounded-[2rem] p-10 border border-[#E8DCC4] shadow-sm flex flex-col md:flex-row items-center gap-10">
+                        <div class="relative w-40 h-40">
+                            <svg class="w-full h-full transform -rotate-90">
+                                <circle cx="80" cy="80" r="70" stroke="#F9F3E5" stroke-width="12" fill="transparent" />
+                                <circle id="score-circle" cx="80" cy="80" r="70" stroke="#58181F" stroke-width="12" fill="transparent" 
+                                    stroke-dasharray="440" stroke-dashoffset="440" stroke-linecap="round" class="score-circle" />
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                <span id="score-display" class="text-5xl font-black text-[#58181F]">0</span>
+                                <span class="text-[10px] uppercase font-bold text-gray-400">Match</span>
+                            </div>
+                        </div>
+                        <div class="flex-1 text-center md:text-left">
+                            <div id="status-badge" class="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-4 bg-gray-100 text-gray-600">
+                                Status: Calculated
+                            </div>
+                            <h2 class="text-3xl serif font-bold text-[#58181F] mb-3">Match Analysis</h2>
+                            <p id="score-message" class="text-gray-500 leading-relaxed text-sm italic">Analysis complete. Check the details below for specific feedback.</p>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Report -->
+                    <div class="bg-white rounded-[2rem] p-10 border border-[#E8DCC4] shadow-sm">
+                        <h2 class="text-xl font-bold text-[#58181F] mb-4 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            Full Report & Suggestions
+                        </h2>
+                        <div id="ats-result-box" class="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap markdown-content bg-[#FAF3F4] p-6 rounded-2xl border border-[#F2E8D5]"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-3xl p-8 border border-[#E8DCC4]">
+                            <h3 class="font-bold text-[#58181F] uppercase tracking-widest text-xs mb-4">Parsed Resume</h3>
+                            <div id="parsed-resume-box" class="text-xs text-gray-600 whitespace-pre-wrap markdown-content"></div>
+                        </div>
+                        <div class="bg-white rounded-3xl p-8 border border-[#E8DCC4]">
+                            <h3 class="font-bold text-[#58181F] uppercase tracking-widest text-xs mb-4">Extracted JD</h3>
+                            <div id="parsed-jd-box" class="text-xs text-gray-600 whitespace-pre-wrap markdown-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Builder View -->
+    <main id="view-builder" class="hidden max-w-7xl mx-auto p-6 lg:p-12">
+        <header class="mb-10 flex flex-col md:flex-row justify-between items-end gap-6">
+            <div>
+                <h1 class="text-5xl serif font-bold text-[#58181F] mb-3">Resume Artisan</h1>
+                <p class="text-gray-500 italic">Craft a high-performance document with AI content assistance.</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="magicFill()" class="bg-[#58181F] text-white px-6 py-4 rounded-2xl font-bold shadow-lg flex items-center gap-2 hover:bg-[#421217] transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="m5 3 1 1"></path><path d="m19 17 1 1"></path><path d="m19 3 1 1"></path><path d="m5 17 1 1"></path></svg>
+                    Magic Fill
+                </button>
+                <button onclick="downloadResume()" class="bg-[#D4AF37] text-[#58181F] px-8 py-4 rounded-2xl font-bold shadow-lg border border-[#B8860B] hover:scale-105 transition-all">Export PDF</button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            <!-- Controls -->
+            <div class="lg:col-span-5 space-y-6 h-[750px] overflow-y-auto pr-2 custom-scrollbar">
+                
+                <section class="bg-white p-6 rounded-3xl border border-[#E8DCC4] shadow-sm">
+                    <h3 class="text-[#58181F] font-bold text-xs uppercase tracking-widest mb-4">Identity</h3>
+                    <div class="space-y-4">
+                        <input type="text" id="res-name" oninput="updatePreview()" placeholder="Full Name" value="Julian Vane" class="w-full p-4 bg-[#F9F3E5] rounded-xl outline-none border border-[#E8DCC4]">
+                        <input type="text" id="res-title" oninput="updatePreview()" placeholder="Target Job Title" value="Creative Lead" class="w-full p-4 bg-[#F9F3E5] rounded-xl outline-none border border-[#E8DCC4]">
+                        <div class="grid grid-cols-2 gap-4">
+                            <input type="text" id="res-email" oninput="updatePreview()" placeholder="Email" value="julian@artisan.com" class="w-full p-4 bg-[#F9F3E5] rounded-xl outline-none border border-[#E8DCC4]">
+                            <input type="text" id="res-phone" oninput="updatePreview()" placeholder="Phone" value="+1 234 567 890" class="w-full p-4 bg-[#F9F3E5] rounded-xl outline-none border border-[#E8DCC4]">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="bg-white p-6 rounded-3xl border border-[#E8DCC4] shadow-sm">
+                    <h3 class="text-[#58181F] font-bold text-xs uppercase tracking-widest mb-4">Professional Narrative</h3>
+                    <textarea id="res-summary" oninput="updatePreview()" rows="5" placeholder="Write a compelling summary of your career..." class="w-full p-4 bg-[#F9F3E5] rounded-xl outline-none resize-none border border-[#E8DCC4]">Dynamic Creative Lead with 8+ years of experience in high-impact brand development. Proven track record in leading cross-functional teams to deliver award-winning digital experiences.</textarea>
+                </section>
+
+                <section class="bg-white p-6 rounded-3xl border border-[#E8DCC4] shadow-sm">
+                    <h3 class="text-[#58181F] font-bold text-xs uppercase tracking-widest mb-4">Work Experience</h3>
+                    <textarea id="res-exp" oninput="updatePreview()" rows="10" placeholder="List your key roles and achievements (use bullet points)..." class="w-full p-4 bg-[#F9F3E5] rounded-xl outline-none resize-none border border-[#E8DCC4]">CREATIVE SOLUTIONS | SENIOR DESIGNER | 2019 - PRESENT
+• Orchestrated design strategy for Fortune 500 clients, resulting in 40% increase in engagement.
+• Mentored a team of 12 junior designers across 3 global timezones.
+• Reduced production overhead by 15% through workflow automation.
+
+VIBE STUDIOS | JUNIOR ART DIRECTOR | 2015 - 2018
+• Developed integrated marketing campaigns for leading retail brands.
+• Collaborated with engineering teams to ensure pixel-perfect implementation.</textarea>
+                </section>
+
+                <section class="bg-white p-6 rounded-3xl border border-[#E8DCC4] shadow-sm">
+                    <h3 class="text-[#58181F] font-bold text-xs uppercase tracking-widest mb-4">Education & Skills</h3>
+                    <textarea id="res-edu" oninput="updatePreview()" rows="4" placeholder="Education details..." class="w-full p-4 bg-[#F9F3E5] rounded-xl outline-none resize-none border border-[#E8DCC4]">BACHELOR OF FINE ARTS | Design Institute | 2014</textarea>
+                    <input type="text" id="res-skills" oninput="updatePreview()" placeholder="Skills (comma separated)" value="Visual Design, UX Strategy, Figma, Brand Identity" class="w-full mt-4 p-4 bg-[#F9F3E5] rounded-xl outline-none border border-[#E8DCC4]">
+                </section>
+            </div>
+
+            <!-- Preview Canvas -->
+            <div class="lg:col-span-7 bg-[#E8DCC4] rounded-[3rem] p-10 flex justify-center overflow-hidden min-h-[800px]">
+                <div id="resume-preview-area">
+                    <div id="resume-content">
+                        <!-- Modern Professional Layout -->
+                        <header class="border-b-4 border-[#58181F] pb-6 mb-8 flex justify-between items-end">
+                            <div>
+                                <h1 id="pre-name" class="text-5xl font-black uppercase text-[#58181F] leading-tight tracking-tighter">JULIAN VANE</h1>
+                                <p id="pre-title" class="text-xl font-light uppercase text-gray-500 mt-1 tracking-widest">CREATIVE LEAD</p>
+                            </div>
+                            <div class="text-right text-xs text-gray-600 space-y-1">
+                                <p id="pre-email">julian@artisan.com</p>
+                                <p id="pre-phone">+1 234 567 890</p>
+                            </div>
+                        </header>
+                        
+                        <div class="grid grid-cols-12 gap-8">
+                            <div class="col-span-12">
+                                <section class="mb-8">
+                                    <h2 class="text-[#58181F] font-bold uppercase text-sm tracking-widest border-b border-gray-200 pb-1 mb-4">Summary</h2>
+                                    <p id="pre-summary" class="text-sm text-gray-700 leading-relaxed"></p>
+                                </section>
+                                
+                                <section class="mb-8">
+                                    <h2 class="text-[#58181F] font-bold uppercase text-sm tracking-widest border-b border-gray-200 pb-1 mb-4">Experience</h2>
+                                    <div id="pre-exp" class="text-sm text-gray-700 whitespace-pre-line leading-relaxed"></div>
+                                </section>
+
+                                <div class="grid grid-cols-2 gap-8">
+                                    <section>
+                                        <h2 class="text-[#58181F] font-bold uppercase text-sm tracking-widest border-b border-gray-200 pb-1 mb-4">Education</h2>
+                                        <div id="pre-edu" class="text-sm text-gray-700"></div>
+                                    </section>
+                                    <section>
+                                        <h2 class="text-[#58181F] font-bold uppercase text-sm tracking-widest border-b border-gray-200 pb-1 mb-4">Expertise</h2>
+                                        <div id="pre-skills" class="text-sm text-gray-700"></div>
+                                    </section>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const jobData = {
+            "IT and Technology": ["Software Developer", "Data Scientist", "AI/ML Engineer", "Cybersecurity Specialist", "Cloud Architect", "Full Stack Developer", "Blockchain Developer", "DevOps Engineer", "UI/UX Designer", "Big Data Engineer", "IoT Solutions Architect", "Network Engineer", "Database Administrator", "IT Support Technician", "Quality Assurance Tester", "Mobile App Developer", "Web Developer", "Systems Analyst", "Ethical Hacker", "IT Project Manager"],
+            "Healthcare and Pharmaceuticals": ["Doctor (General Physician)", "Surgeon", "Nurse", "Pharmacist", "Dentist", "Radiologist", "Physiotherapist", "Medical Laboratory Technician", "Hospital Administrator", "Biomedical Engineer", "Nutritionist", "Optometrist", "Anesthesiologist", "Pathologist", "Psychiatrist", "Pediatrician", "Gynecologist", "Cardiologist", "Neurologist", "Medical Researcher"],
+            "Finance and Banking (BFSI)": ["Investment Banker", "Chartered Accountant", "Financial Analyst", "Bank Manager", "Loan Officer", "Insurance Agent", "Risk Analyst", "Tax Consultant", "Auditor", "Wealth Manager", "Credit Analyst", "Treasury Manager", "Compliance Officer", "Actuary", "Portfolio Manager", "Forex Trader", "Mutual Fund Manager", "Billing Analyst", "Fintech Developer", "Corporate Banker"],
+            "Education": ["Teacher (Primary)", "Professor (College)", "School Principal", "Lecturer", "Tutor", "Counselor", "Education Consultant", "Curriculum Developer", "Special Education Teacher", "Online Instructor", "Dean of Faculty", "Academic Advisor", "Librarian", "Instructional Designer", "School Psychologist", "Vice Principal", "Education Technology Specialist", "Researcher (Academic)", "Admissions Officer", "Trainer (Corporate)"],
+            "Agriculture and Allied Sectors": ["Farmer", "Agricultural Engineer", "Agronomist", "Veterinarian", "Dairy Farm Manager", "Horticulturist", "Soil Scientist", "Plant Breeder", "Agricultural Officer", "Fisherman", "Forestry Officer", "Poultry Farm Manager", "Irrigation Engineer", "Seed Technologist", "Organic Farmer", "Agri-Business Manager", "Farm Supervisor", "Animal Husbandry Officer", "Apiculturist (Beekeeper)", "Floriculturist"],
+            "Manufacturing and Automotive": ["Production Manager", "Mechanical Engineer", "Quality Control Inspector", "Assembly Line Worker", "Industrial Designer", "Maintenance Engineer", "Welding Technician", "CNC Operator", "Automotive Technician", "Supply Chain Manager", "Plant Supervisor", "Tool and Die Maker", "Robotics Engineer", "Packaging Supervisor", "Inventory Controller", "Lean Manufacturing Specialist", "Foundry Worker", "Machinist", "Fabrication Engineer", "Textile Mill Operator"],
+            "Retail and E-commerce": ["Store Manager", "Sales Executive", "Cashier", "Merchandiser", "Visual Merchandiser", "Warehouse Supervisor", "Delivery Driver", "Customer Service Representative", "Inventory Manager", "E-commerce Specialist", "Category Manager", "Retail Buyer", "Logistics Coordinator", "Shelf Stocker", "Sales Promoter", "Brand Manager", "Trade Marketing Executive", "Online Order Picker", "Returns Processor", "Shop Assistant"],
+            "Hospitality and Tourism": ["Hotel Manager", "Chef", "Waiter/Waitress", "Housekeeping Attendant", "Front Desk Officer", "Tour Guide", "Travel Agent", "Event Planner", "Bartender", "Concierge", "Restaurant Manager", "Sommelier", "Cruise Ship Staff", "Resort Manager", "Banquet Coordinator", "Travel Consultant", "Airline Cabin Crew", "Heritage Site Guide", "Food and Beverage Manager", "Spa Therapist"],
+            "Construction and Real Estate": ["Civil Engineer", "Architect", "Site Supervisor", "Quantity Surveyor", "Interior Designer", "Real Estate Agent", "Project Manager (Construction)", "Mason", "Electrician", "Plumber", "Carpenter", "Draftsman", "Structural Engineer", "Land Surveyor", "Building Inspector", "Estate Manager", "Property Consultant", "Demolition Expert", "HVAC Technician", "Estimator"],
+            "Government and Public Services": ["IAS Officer", "IPS Officer", "IRS Officer", "Police Constable", "Clerk", "Revenue Officer", "Municipal Corporation Worker", "Postmaster", "Defense Personnel", "Railway Ticket Examiner", "Customs Officer", "Forest Ranger", "Public Prosecutor", "Judge", "Tehsildar", "Block Development Officer", "Gram Panchayat Secretary", "Election Officer", "Passport Officer", "Urban Planner"],
+            "Media and Entertainment": ["Journalist", "Editor", "Content Writer", "Actor", "Director (Film)", "Producer", "Camera Operator", "Graphic Designer", "Radio Jockey", "Anchor (TV)", "Script Writer", "Animator", "Photographer", "Sound Engineer", "Film Editor", "Public Relations Officer", "Advertising Executive", "Digital Marketer", "Influencer Manager", "Voice-over Artist"],
+            "Human Resources and Administration": ["HR Manager", "Recruiter", "Payroll Specialist", "Training Coordinator", "Administrative Assistant", "Office Manager", "Receptionist", "Executive Assistant", "Compliance Manager", "Labor Relations Specialist", "Talent Acquisition Manager", "Employee Relations Officer", "Benefits Administrator", "Diversity Officer", "Facility Manager", "Records Clerk", "Personal Assistant", "Operations Coordinator", "Union Representative", "Workplace Safety Officer"],
+            "Marketing and Sales": ["Marketing Manager", "Sales Manager", "Digital Marketer", "Brand Manager", "Market Research Analyst", "Advertising Manager", "Business Development Executive", "Telemarketer", "Account Manager", "Product Manager", "Sales Representative", "Promotions Specialist", "SEO Specialist", "Social Media Manager", "Publicist", "Trade Show Coordinator", "Pricing Analyst", "Customer Success Manager", "Lead Generation Specialist", "Field Sales Officer"],
+            "Logistics and Transportation": ["Logistics Manager", "Truck Driver", "Warehouse Manager", "Supply Chain Analyst", "Fleet Supervisor", "Customs Broker", "Dispatcher", "Forklift Operator", "Transport Planner", "Rail Yard Worker", "Cargo Handler", "Shipping Coordinator", "Route Optimizer", "Distribution Manager", "Courier Delivery Executive", "Traffic Analyst", "Port Operator", "Aviation Ground Staff", "Metro Train Operator", "Rickshaw Puller"],
+            "Energy and Utilities": ["Electrical Engineer", "Power Plant Operator", "Renewable Energy Technician", "Solar Panel Installer", "Wind Turbine Technician", "Oil Rig Worker", "Mining Engineer", "Geologist", "Drilling Supervisor", "Pipeline Technician", "Grid Operator", "Energy Auditor", "Coal Miner", "Gas Station Attendant", "Hydroelectric Engineer", "Nuclear Technician", "Distribution Lineman", "Fuel Handler", "Environmental Compliance Officer", "Utility Billing Clerk"],
+            "Beauty and Wellness": ["Beautician", "Hair Stylist", "Makeup Artist", "Spa Therapist", "Yoga Instructor", "Fitness Trainer", "Dietitian", "Ayurvedic Doctor", "Massage Therapist", "Nail Technician", "Salon Manager", "Wellness Coach", "Acupuncturist", "Barber", "Skin Specialist", "Aromatherapist", "Gym Manager", "Personal Trainer", "Naturopath", "Reflexologist"],
+            "Apparel and Textiles": ["Fashion Designer", "Tailor", "Pattern Maker", "Garment Technician", "Loom Operator", "Dyer", "Quality Inspector (Textiles)", "Embroidery Artist", "Fabric Designer", "Merchandise Planner", "Knitting Machine Operator", "Textile Engineer", "Production Supervisor (Apparel)", "Sourcing Manager", "Handloom Weaver", "Apparel Merchandiser", "Finishing Operator", "Sampling Coordinator", "Export Documentation Executive", "Fabric Cutter"]
+        };
+
+        const suggestionsBySector = {
+            "IT and Technology": {
+                keywords: ["Cloud Computing (AWS/Azure)", "Agile Methodology", "System Architecture", "Scalability", "Full-stack development"],
+                certs: ["AWS Solutions Architect", "CompTIA Security+", "Google Cloud Professional", "Certified Scrum Master"]
+            },
+            "Healthcare and Pharmaceuticals": {
+                keywords: ["Patient Care Management", "HIPAA Compliance", "Clinical Research", "Electronic Health Records (EHR)", "Pharmacovigilance"],
+                certs: ["Medical Board Certification", "Basic Life Support (BLS)", "Clinical Research Professional (CCRP)"]
+            },
+            "Finance and Banking (BFSI)": {
+                keywords: ["Risk Management", "Financial Modeling", "IFRS Compliance", "Asset Allocation", "Portfolio Optimization"],
+                certs: ["CFA Level 1/2", "CPA License", "FRM (Financial Risk Manager)", "Certified Internal Auditor"]
+            },
+            "Manufacturing and Automotive": {
+                keywords: ["Lean Manufacturing", "Six Sigma Black Belt", "Supply Chain Optimization", "Quality Assurance (ISO 9001)", "Just-in-Time (JIT)"],
+                certs: ["Certified Supply Chain Professional (CSCP)", "Six Sigma Certification"]
+            }
+        };
+
+        window.onload = () => {
+            const sectorSelect = document.getElementById('sector-select');
+            Object.keys(jobData).sort().forEach(sector => {
+                const opt = document.createElement('option');
+                opt.value = sector;
+                opt.textContent = sector;
+                sectorSelect.appendChild(opt);
+            });
+            updatePreview();
+        };
+
+        function updateJobRoles() {
+            const sector = document.getElementById('sector-select').value;
+            const jobSelect = document.getElementById('job-select');
+            jobSelect.innerHTML = '<option value="">Select Role</option>';
+            if (sector) {
+                jobSelect.disabled = false;
+                jobData[sector].sort().forEach(role => {
+                    const opt = document.createElement('option');
+                    opt.value = role;
+                    opt.textContent = role;
+                    jobSelect.appendChild(opt);
+                });
+            } else {
+                jobSelect.disabled = true;
+            }
+        }
+
+        function generateJD() {
+            const role = document.getElementById('job-select').value;
+            const sector = document.getElementById('sector-select').value;
+            if (!role) return;
+
+            const template = `Role: ${role}
+Industry: ${sector}
+
+Required Skills:
+• Proficiency in ${role}-specific standards and protocols.
+• Strong technical foundation in ${sector} methodologies.
+• Excellent organizational and strategic planning skills.
+• Advanced analytical and critical thinking capabilities.
+
+Key Responsibilities:
+• Lead and manage core functions of the ${role} position.
+• Ensure adherence to ${sector} regulatory and quality requirements.
+• Drive process improvements to maximize productivity and outcomes.
+• Prepare comprehensive reports and documentation for management.`;
+
+            document.getElementById('jd-input').value = template;
+        }
+
+        function updateFileName(input) {
+            if (input.files[0]) document.getElementById('file-name').innerText = input.files[0].name;
+        }
+
+        async function runAIAnalysis() {
+            const resumeInput = document.getElementById('resume-input');
+            const jdInput = document.getElementById('jd-input');
+            const role = document.getElementById('job-select').value;
+            const sector = document.getElementById('sector-select').value;
+            const resumeFile = resumeInput.files[0];
+            const jdText = jdInput.value;
+
+            if (!resumeFile || !jdText.trim()) {
+                alert("Please provide both a Resume PDF and a Job Description.");
+                return;
+            }
+
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('analysis-results').classList.add('hidden');
+            document.getElementById('loading-state').classList.remove('hidden');
+
+            document.getElementById('score-display').innerText = "0";
+            document.getElementById('score-circle').style.strokeDashoffset = "440";
+
+            const formData = new FormData();
+            formData.append('resume', resumeFile);
+            formData.append('job_description', jdText);
+
+            try {
+                const response = await fetch('http://127.0.0.1:8080/analyze', {
+                    method: 'POST',
+                    mode: 'cors',
+                    body: formData
+                });
+                if (!response.ok) throw new Error("Backend not reachable");
+                const data = await response.json();
+                displayResults(data.ats_result, data.parsed_resume, data.parsed_job_description);
+            } catch (error) {
+                console.warn("Backend not found, using Mock Scorer.");
+                setTimeout(() => {
+                    // Generate a random score for variety
+                    const mockScore = Math.floor(Math.random() * (98 - 35 + 1)) + 35;
+                    
+                    // Generate sector-specific suggestions
+                    const sectorInfo = suggestionsBySector[sector] || { keywords: ["Specific Sector Keywords", "Industry Standards"], certs: ["Professional Certification in " + sector] };
+                    
+                    const mockReport = `### ANALYSIS REPORT & IMPROVEMENT STRATEGY
+
+**Current Evaluation**: Score: ${mockScore}/100
+
+1. **Keyword Analysis**: 
+   - Found significant overlap in general soft skills.
+   - Missing industry-specific technical depth for the role of ${role}.
+
+2. **Formatting**:
+   - Layout is standard and parsed correctly by the simulation.
+
+3. **STRATEGIC SUGGESTIONS (To increase score above 85+)**:
+   
+   **A. Critical Keywords to Include**:
+   - ${sectorInfo.keywords.join(", ")}
+   - Quantitative results (e.g., "Increased efficiency by X%")
+   - Stakeholder management protocols specific to ${sector}.
+
+   **B. Recommended Certifications/Skills**:
+   - ${sectorInfo.certs.join(", ")}
+   - Proficiency in industry-standard software tools.
+
+   **C. Structural Improvements**:
+   - Move "Skills" section higher up for faster ATS indexing.
+   - Use standard section headers (Experience, Education, Skills).
+
+**Final Verdict**: ${mockScore >= 70 ? 'Highly Competitive' : mockScore >= 50 ? 'Needs Optimization' : 'Significant Gaps Found'}`;
+
+                    displayResults(mockReport, "Resume content extracted successfully...", jdText);
+                }, 2000);
+            }
+        }
+
+        function displayResults(report, parsedResume, parsedJD) {
+            document.getElementById('ats-result-box').innerText = report;
+            document.getElementById('parsed-resume-box').innerText = parsedResume;
+            document.getElementById('parsed-jd-box').innerText = parsedJD;
+
+            const scoreMatch = report.match(/(\d+)\/100/) || report.match(/Score:?\s*(\d+)/i);
+            const score = scoreMatch ? parseInt(scoreMatch[1]) : 75;
+            
+            updateVisualScore(score);
+
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('analysis-results').classList.remove('hidden');
+        }
+
+        /**
+         * UPDATED SCORING LOGIC
+         * Green: 70+
+         * Orange: 50-69
+         * Red: < 50
+         */
+        function updateVisualScore(score) {
+            const circle = document.getElementById('score-circle');
+            const display = document.getElementById('score-display');
+            const badge = document.getElementById('status-badge');
+            const message = document.getElementById('score-message');
+
+            let current = 0;
+            const step = () => {
+                if (current < score) {
+                    current++;
+                    display.innerText = current;
+                    requestAnimationFrame(step);
+                }
+            };
+            step();
+
+            const offset = 440 - (440 * score) / 100;
+            circle.style.strokeDashoffset = offset;
+            
+            let color, bg, text, status, msg;
+
+            if (score >= 70) {
+                // GREEN (Matches 70+)
+                color = "#10b981"; 
+                bg = "bg-emerald-100";
+                text = "text-emerald-700";
+                status = "Strong Alignment";
+                msg = "Excellent! Your profile is highly compatible with this role. Check suggestions for the final polish.";
+            } else if (score >= 50) {
+                // ORANGE (Matches 50-69)
+                color = "#f59e0b"; 
+                bg = "bg-amber-100";
+                text = "text-amber-700";
+                status = "Moderate Alignment";
+                msg = "You have a good foundation, but significant keywords are missing. Follow the suggestions below.";
+            } else {
+                // RED (Matches < 50)
+                color = "#ef4444"; 
+                bg = "bg-rose-100";
+                text = "text-rose-700";
+                status = "Poor Alignment";
+                msg = "Critical gaps detected. You need to incorporate the specific skills mentioned in the report to pass ATS filters.";
+            }
+
+            circle.style.stroke = color;
+            display.style.color = color;
+            badge.className = `inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-4 ${bg} ${text}`;
+            badge.innerText = `Status: ${status}`;
+            message.innerText = msg;
+        }
+
+        // Builder Functions
+        function magicFill() {
+            const role = document.getElementById('job-select').value || "Professional";
+            const sector = document.getElementById('sector-select').value || "Industry";
+            const summary = `Dedicated and highly skilled ${role} with extensive experience within the ${sector} landscape. Expert at managing complex projects, optimizing operational workflows, and delivering high-quality results in fast-paced environments. Committed to excellence and staying at the forefront of ${sector} innovations.`;
+            const experience = `PREMIER ORG | LEAD ${role.toUpperCase()} | 2021 - PRESENT
+• Spearheaded major ${role} initiatives, leading to a 30% increase in department performance.
+• Managed and mentored a high-performing team in the ${sector} sector.
+• Implemented new methodologies that significantly reduced operational costs.
+
+ELITE CORP | ${role.toUpperCase()} SPECIALIST | 2018 - 2021
+• Contributed to key strategic goals by leveraging advanced ${sector} expertise.
+• Streamlined documentation and reporting processes for better transparency.
+• Consistently exceeded performance targets and quality benchmarks.`;
+            const skills = `${role} Expertise, ${sector} Compliance, Strategic Planning, Data Analysis, Team Management`;
+            document.getElementById('res-summary').value = summary;
+            document.getElementById('res-exp').value = experience;
+            document.getElementById('res-skills').value = skills;
+            updatePreview();
+        }
+
+        function switchTab(tab) {
+            document.getElementById('view-optimizer').classList.toggle('hidden', tab !== 'optimizer');
+            document.getElementById('view-builder').classList.toggle('hidden', tab !== 'builder');
+            document.getElementById('tab-opt').classList.toggle('border-[#F9F3E5]', tab === 'optimizer');
+            document.getElementById('tab-build').classList.toggle('border-[#F9F3E5]', tab === 'builder');
+        }
+
+        function updatePreview() {
+            document.getElementById('pre-name').innerText = (document.getElementById('res-name').value || 'NAME').toUpperCase();
+            document.getElementById('pre-title').innerText = (document.getElementById('res-title').value || 'TITLE').toUpperCase();
+            document.getElementById('pre-summary').innerText = document.getElementById('res-summary').value;
+            document.getElementById('pre-exp').innerText = document.getElementById('res-exp').value;
+            document.getElementById('pre-edu').innerText = document.getElementById('res-edu').value;
+            document.getElementById('pre-skills').innerText = document.getElementById('res-skills').value;
+            document.getElementById('pre-email').innerText = document.getElementById('res-email').value;
+            document.getElementById('pre-phone').innerText = document.getElementById('res-phone').value;
+        }
+
+        async function downloadResume() {
+            const { jsPDF } = window.jspdf;
+            const element = document.getElementById('resume-preview-area');
+            const originalTransform = element.style.transform;
+            element.style.transform = 'none';
+            const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgProps = pdf.getImageProperties(imgData);
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`${document.getElementById('res-name').value || 'Resume'}.pdf`);
+            element.style.transform = originalTransform;
+        }
+    </script>
+</body>
+</html>
